@@ -27,7 +27,7 @@ import os
 from abc import ABC, abstractmethod
 
 import requests
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from core.config import Config
 from core.util import parse_json_llm
@@ -132,8 +132,21 @@ Faça uma avaliação rigorosa.
 """
 
         raw = self.router.ask("critic", system, prompt)
-        data = parse_json_llm(raw)
-        return CriticDecision.model_validate(data).fail_closed()
+        try:
+            data = parse_json_llm(raw)
+            return CriticDecision.model_validate(data).fail_closed()
+        except (ValueError, ValidationError) as exc:
+            # Deixa a resposta crua diagnosticável no log (sem ela, uma
+            # falha intermitente do backend é invisível).
+            decision_logger.warning(
+                "critic_unparseable",
+                extra={
+                    "event": "critic_unparseable",
+                    "error": str(exc)[:300],
+                    "raw_snippet": raw[:400],
+                },
+            )
+            raise
 
 
 class RuleDecisionEngine(DecisionEngine):

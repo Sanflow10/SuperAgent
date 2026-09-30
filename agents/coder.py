@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from agents.base import Agent
 from core.util import parse_json_llm
@@ -68,5 +68,18 @@ Não execute nada.
 """
 
         raw = self.router.ask("coder", system, prompt)
-        data = parse_json_llm(raw)
-        return CodeProposal.model_validate(data)
+        try:
+            data = parse_json_llm(raw)
+            return CodeProposal.model_validate(data)
+        except (ValueError, ValidationError):
+            # Resposta malformada (glitch intermitente do backend) — uma
+            # repetição in-place é mais barata que um replan completo.
+            raw = self.router.ask("coder", system, prompt)
+            try:
+                data = parse_json_llm(raw)
+                return CodeProposal.model_validate(data)
+            except (ValueError, ValidationError) as exc:
+                raise ValueError(
+                    f"Coder não produziu proposta JSON válida após 2 tentativas "
+                    f"({exc}). Resposta crua[:400]: {raw[:400]!r}"
+                ) from None
