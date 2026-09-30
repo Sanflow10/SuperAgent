@@ -190,3 +190,9 @@ docker compose exec superagent python main.py "objetivo"
 | `workspace/`       | arquivos produzidos pelo coder           |
 | `memory/`          | SQLite de memória por run                |
 | `logs/`            | logs JSON rotativos                      |
+
+## Licença
+
+[MIT](LICENSE) — fork, use comercialmente e contribua liberamente.
+GitHub mostra a licença na barra lateral; sem ela, usar o projeto seria
+tecnicamente violação de direitos autorais.
