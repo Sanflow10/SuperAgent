@@ -28,8 +28,12 @@ def parse_json_llm(raw: str) -> Any:
     """
     Robust JSON parser for LLM responses.
 
-    Handles fences,  FreeBSD thought blocks, surrounding prose, and nested JSON
-    (relies on rfind('}') fallback instead of non-greedy regex).
+    Ordem: texto inteiro -> dentro de fence -> faixas { ... }.
+
+    A ordem importa: uma resposta que JÁ é JSON válido precisa ser aceita
+    como está. Extrair o fence PRIMEIRO destruía JSON cujas strings contêm
+    fences markdown (ex.: content de arquivo com bloco de código) — o
+    FENCE_RE casava o fence de dentro e descartava o JSON inteiro.
 
     Usa strict=False: LLMs frequentemente emitem newline/controle LITERAL
     dentro de strings (em vez de \\n escapado) — a sintaxe continua sendo a
@@ -38,15 +42,22 @@ def parse_json_llm(raw: str) -> Any:
 
     text = clean_llm_text(raw)
 
-    match = FENCE_RE.search(text)
-    if match:
-        text = match.group(1).strip()
-
+    # 1) O texto inteiro já é JSON (caso mais comum; cobre JSON que
+    #    contém fences/newlines dentro das strings).
     try:
         return json.loads(text, strict=False)
     except json.JSONDecodeError:
         pass
 
+    # 2) Resposta embrulhada em ```json ... ``` (com prosa em volta).
+    match = FENCE_RE.search(text)
+    if match:
+        try:
+            return json.loads(match.group(1).strip(), strict=False)
+        except json.JSONDecodeError:
+            pass
+
+    # 3) Prosa com chaves: recorta do primeiro { ao último }.
     start = text.find("{")
     end = text.rfind("}")
 

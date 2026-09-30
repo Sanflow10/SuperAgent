@@ -54,6 +54,42 @@ def test_strict_false_does_not_accept_broken_syntax():
         parse_json_llm('{"a": 1,}')  # vírgula trailing continua inválida
 
 
+def test_naked_json_with_inner_code_fence():
+    """Regressão: JSON válido cujo content markdown contém ``` — o FENCE_RE
+    casava o fence DE DENTRO da string e destruía o JSON antes do parse.
+    Era a causa das falhas 'JSON inválido' do coder com propostas reais."""
+    raw = (
+        '{"summary": "ok", "files": [{"path": "r.md", "content":'
+        ' "# Titulo\\n\\n```\\nA media de [4, 7, 10] e 7.0\\n```\\n"}]}'
+    )
+    result = parse_json_llm(raw)
+    assert "```" in result["files"][0]["content"]
+
+
+def test_wrapped_fence_still_works():
+    """JSON embrulhado em ```json com prosa continua sendo extraído."""
+    raw = 'Claro! Aqui esta:\n```json\n{"a": 5}\n```\nPronto.'
+    assert parse_json_llm(raw)["a"] == 5
+
+
+def test_prose_with_braces_before_fence():
+    """Prosa com chave solta ANTES do fence: o fence ainda vence."""
+    raw = 'Use {"a": 1} como exemplo. Resposta:\n```json\n{"b": 2}\n```'
+    assert parse_json_llm(raw)["b"] == 2
+
+
+def test_real_unparseable_response_from_run():
+    """Resposta REAL gravada em logs/coder_unparseable.log (run
+    6c49b0e8) que falhava com o parser antigo — precisa parsear."""
+    raw = (
+        '{\n  "summary": "Execucao registrada",\n  "files": [\n    {\n'
+        '      "path": "resumo.md",\n      "content": "# Resumo\\n\\n'
+        '```\\nA media de [4, 7, 10] e 7.0\\n```\\n"\n    }\n  ]\n}'
+    )
+    result = parse_json_llm(raw)
+    assert result["files"][0]["path"] == "resumo.md"
+
+
 def test_truncate_keeps_head():
     assert truncate("abcdefghij", 5).startswith("abcde")
 
