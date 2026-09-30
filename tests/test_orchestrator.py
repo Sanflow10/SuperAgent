@@ -21,7 +21,10 @@ class FakeRouter:
 
 
 class FakeLogger:
-    def info(self, *a, **k): pass
+    def __init__(self):
+        self.events = []
+    def info(self, msg, *a, **k):
+        self.events.append((msg, k.get("extra", {})))
     def warning(self, *a, **k): pass
     def error(self, *a, **k): pass
 
@@ -243,3 +246,83 @@ def test_sandbox_disabled_produces_feedback(tmp_path, monkeypatch):
     result = orch.run("g")
     assert result["status"] == "REPLAN_LIMIT"
     assert result["results"][0]["status"] == "ERROR"
+
+
+_Critique = json.dumps({"decision": "APPROVE", "score": 0.9,
+                        "problems": [], "next_action": ""})
+
+
+def test_answer_field_is_the_researcher_text():
+    """A resposta final do run sai no payload, não só na memória."""
+    plan = {"steps": [{"step": 1, "agent": "researcher",
+                       "objective": "resumir", "tool": None, "path": None}]}
+    orch, _ = _build({
+        "planner": [json.dumps(plan)],
+        "researcher": ["A media de [4, 7, 10] e 7.0"],
+        "critic": [_Critique],
+    })
+    result = orch.run("g")
+    assert result["status"] == "COMPLETED"
+    assert result["answer"] == "A media de [4, 7, 10] e 7.0"
+
+
+def test_coder_without_write_tool_informs_model_and_logs(tmp_path):
+    """Regressão: coder sob step SEM filesystem.write — a proposta não é
+    gravada. O modelo precisa ser avisado (senão alega criar arquivos) e
+    o descarte precisa aparecer no log (antes era silencioso)."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan = {"steps": [{"step": 1, "agent": "coder",
+                       "objective": "resumir saida",
+                       "tool": None, "path": None}]}
+    proposal = json.dumps({
+        "summary": "resumo da execucao",
+        "files": [{"path": "resumo.md", "content": "# Resumo\n"}],
+    })
+    orch, router = _build({
+        "planner": [json.dumps(plan)],
+        "coder": [proposal],
+        "critic": [_Critique],
+    }, workspace=workspace)
+    result = orch.run("g")
+
+    assert result["status"] == "COMPLETED"
+    assert result["answer"] == "resumo da execucao"
+
+    # modelo foi avisado de que nada será gravado
+    coder_prompts = [p for r, p, _ in router.prompts if r == "coder"]
+    assert coder_prompts and "NÃO serão gravados" in coder_prompts[0]
+
+    # descarte visível no log
+    drops = [extra for msg, extra in orch.logger.events
+             if msg == "proposal_not_written"]
+    assert drops and drops[0]["files"] == 1
+
+    # e nada foi gravado mesmo (design: escrita opt-in do planner)
+    assert not (workspace / "resumo.md").exists()
+
+
+def test_coder_with_write_tool_writes_without_warning(tmp_path):
+    """Com filesystem.write no step, a proposta é gravada e não há
+    proposal_not_written."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan = {"steps": [{"step": 1, "agent": "coder",
+                       "objective": "criar resumo",
+                       "tool": "filesystem.write", "path": None}]}
+    proposal = json.dumps({
+        "summary": "arquivo criado",
+        "files": [{"path": "resumo.md", "content": "# Resumo\n"}],
+    })
+    orch, _ = _build({
+        "planner": [json.dumps(plan)],
+        "coder": [proposal],
+        "critic": [_Critique],
+    }, workspace=workspace)
+    result = orch.run("g")
+
+    assert result["status"] == "COMPLETED"
+    assert result["answer"] == "arquivo criado"
+    assert (workspace / "resumo.md").read_text(encoding="utf-8") == "# Resumo\n"
+    assert not any(msg == "proposal_not_written"
+                   for msg, _ in orch.logger.events)

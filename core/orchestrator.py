@@ -106,6 +106,7 @@ class Orchestrator:
 
         feedback = ""
         results: list[dict] = []
+        last_answer = ""
 
         while True:
             context = self.context()
@@ -126,6 +127,7 @@ class Orchestrator:
                         "status": "PLANNER_ERROR",
                         "reason": str(exc),
                         "results": results,
+                        "answer": last_answer,
                         "replans": self.supervisor.replans,
                         "last_failure": replan_reason,
                     }
@@ -284,6 +286,22 @@ class Orchestrator:
                         truncate(sandbox_output, 4000),
                     )
 
+                if plan_step.agent == "coder" and plan_step.tool != (
+                    "filesystem.write"
+                ):
+                    # O planner só grava propostas em steps com
+                    # filesystem.write; sem o aviso, o coder alega ter
+                    # criado arquivos que nunca são gravados.
+                    extra_context += (
+                        "\n<persistence>\n"
+                        "Este step NÃO inclui filesystem.write: arquivos da "
+                        "sua proposta NÃO serão gravados. Não afirme ter "
+                        "criado arquivos. Coloque o resultado no campo "
+                        "summary; use files somente se o plano tiver um "
+                        "step filesystem.write.\n"
+                        "</persistence>\n"
+                    )
+
                 step_started = time.monotonic()
                 try:
                     if plan_step.agent == "researcher":
@@ -293,6 +311,7 @@ class Orchestrator:
                             context=self.context() + extra_context,
                         )
                         result_text = output_text
+                        last_answer = output_text
                     elif plan_step.agent == "coder":
                         proposal = self.coder.run(
                             goal=goal,
@@ -302,6 +321,7 @@ class Orchestrator:
                         result_text = json.dumps(
                             proposal.model_dump(), ensure_ascii=False
                         )
+                        last_answer = proposal.summary
                     else:
                         raise ValueError(f"Agente não permitido: {plan_step.agent}")
 
@@ -400,6 +420,7 @@ class Orchestrator:
                         "run_id": self.run_id,
                         "status": "ESCALATED",
                         "results": results,
+                        "answer": last_answer,
                         "reason": "Decisão com confiança insuficiente — revisão humana.",
                         "steps_used": self.supervisor.steps,
                         "replans": self.supervisor.replans,
@@ -509,6 +530,22 @@ class Orchestrator:
                         plan_failed = True
                         break
 
+                elif plan_step.agent == "coder":
+                    # Proposta aprovada mas o step não tem
+                    # filesystem.write: nada é gravado. Deixa isso
+                    # explícito no log em vez de silencioso.
+                    try:
+                        pending = json.loads(result_text).get("files") or []
+                    except json.JSONDecodeError:
+                        pending = []
+                    if pending:
+                        self._log(
+                            "proposal_not_written",
+                            step=plan_step.step,
+                            files=len(pending),
+                            reason="step sem filesystem.write",
+                        )
+
                 results.append(result_entry)
                 feedback = ""
 
@@ -520,6 +557,7 @@ class Orchestrator:
                     "run_id": self.run_id,
                     "status": "COMPLETED",
                     "results": results,
+                    "answer": last_answer,
                     "steps_used": self.supervisor.steps,
                     "replans": self.supervisor.replans,
                     "elapsed_seconds": round(self.supervisor.elapsed_seconds, 2),
@@ -531,6 +569,7 @@ class Orchestrator:
                     "run_id": self.run_id,
                     "status": "REPLAN_LIMIT",
                     "results": results,
+                    "answer": last_answer,
                     "reason": reason,
                     "last_failure": failure_reason,
                     "steps_used": self.supervisor.steps,
