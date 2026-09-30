@@ -41,6 +41,10 @@ O Critic vira fachada sobre um `DecisionEngine` pluggable (`core/decisions.py`).
 | SA-119 | Calibração do limiar com dados rotulados (shadow mode: engine `typed` vs `llm` comparados sem agir) | P1 | ⬜ |
 | SA-120 | Metric: latência/custo do critic por engine (baseline para o benchmark "critic 68s → sub-segundo") | P2 | ⬜ |
 
+**Critério de aceitação da Decision Engine:** SA-114..118 ✅ + run real com LLM (NIM) fechando `COMPLETED` + engine `typed` aprovado contra endpoint OpenAI-compatible real.
+
+**Hardening do parser (2026-09-30, pós-run real):** `parse_json_llm` com `strict=False` (newline/controle literal dentro de string) e ordem **inteiro → fence → faixas** (JSON cujo `content` markdown contém fence ```` ``` ```` não é mais destruído antes do parse); diagnóstico das respostas crua em `logs/coder_unparseable.log`. Causa confirmada com as respostas reais do run `6c49b0e8`; 81 testes.
+
 ---
 
 ## V0.7 — Memória e paralelismo
