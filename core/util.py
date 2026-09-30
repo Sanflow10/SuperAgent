@@ -30,6 +30,10 @@ def parse_json_llm(raw: str) -> Any:
 
     Handles fences,  FreeBSD thought blocks, surrounding prose, and nested JSON
     (relies on rfind('}') fallback instead of non-greedy regex).
+
+    Usa strict=False: LLMs frequentemente emitem newline/controle LITERAL
+    dentro de strings (em vez de \\n escapado) — a sintaxe continua sendo a
+    do JSON, só os controles dentro de string são aceitos.
     """
 
     text = clean_llm_text(raw)
@@ -39,7 +43,7 @@ def parse_json_llm(raw: str) -> Any:
         text = match.group(1).strip()
 
     try:
-        return json.loads(text)
+        return json.loads(text, strict=False)
     except json.JSONDecodeError:
         pass
 
@@ -48,7 +52,7 @@ def parse_json_llm(raw: str) -> Any:
 
     if start != -1 and end > start:
         try:
-            return json.loads(text[start : end + 1])
+            return json.loads(text[start : end + 1], strict=False)
         except json.JSONDecodeError:
             pass
 
