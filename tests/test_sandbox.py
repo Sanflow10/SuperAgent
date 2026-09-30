@@ -96,3 +96,20 @@ def test_network_denied_in_bwrap(tmp_path, monkeypatch):
     output = tool.execute("net.py")
     assert "NET_DENIED" in output
     assert "NET_OK" not in output
+
+
+def test_plain_backend_does_not_inherit_parent_env(tmp_path, monkeypatch):
+    """Regressão de segurança: o backend plain herdava o ambiente do pai —
+    o código gerado pelo LLM lia chaves (NVIDIA_*, DECISION_API_KEY) do
+    host, e plain não nega rede. Agora o env é mínimo (PATH/HOME/LANG)."""
+    monkeypatch.setenv("VAZAO_TEST_SECRET", "banana-123")
+    tool = _tool(tmp_path, monkeypatch, SANDBOX_BACKEND="plain")
+    tool.fs.write_many([(
+        "env.py",
+        "import os\n"
+        "print('LEAK=', os.environ.get('VAZAO_TEST_SECRET'))\n"
+        "print('KEYS=', [k for k in os.environ if 'KEY' in k or 'TOKEN' in k])\n",
+    )])
+    output = tool.execute("env.py")
+    assert "banana-123" not in output
+    assert "LEAK= None" in output

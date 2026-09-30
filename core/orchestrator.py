@@ -382,6 +382,19 @@ class Orchestrator:
                 )
 
                 if (
+                    critic.decision == "APPROVE"
+                    and self.min_confidence > 0
+                    and critic.confidence is None
+                ):
+                    # Fail-closed: limiar explícito exige confidence; um
+                    # APPROVE sem número de confiança não pode passar sozinho.
+                    critic.decision = "ESCALATE"
+                    critic.problems.append(
+                        "confidence ausente com limiar explícito "
+                        f"(min {self.min_confidence:.2f}) — "
+                        "revisão humana exigida"
+                    )
+                elif (
                     critic.confidence is not None
                     and critic.decision == "APPROVE"
                     and critic.confidence < self.min_confidence

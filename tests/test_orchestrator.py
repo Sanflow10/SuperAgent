@@ -326,3 +326,21 @@ def test_coder_with_write_tool_writes_without_warning(tmp_path):
     assert (workspace / "resumo.md").read_text(encoding="utf-8") == "# Resumo\n"
     assert not any(msg == "proposal_not_written"
                    for msg, _ in orch.logger.events)
+
+
+def test_approve_sem_confidence_escalate_com_limiar_explicito(monkeypatch):
+    """Regressão de segurança (fail-closed): APPROVE com confidence AUSENTE
+    e limiar explícito > 0 não pode passar — o limiar exige o número."""
+    monkeypatch.setenv("DECISION_MIN_CONFIDENCE", "0.5")
+    plan = {"steps": [{"step": 1, "agent": "researcher",
+                       "objective": "x", "tool": None, "path": None}]}
+    critique = {"decision": "APPROVE", "score": 0.9,
+                "problems": [], "next_action": ""}  # sem confidence
+    orch, _ = _build({
+        "planner": [json.dumps(plan)],
+        "researcher": ["out"],
+        "critic": [json.dumps(critique)],
+    })
+    result = orch.run("g")
+    assert result["status"] == "ESCALATED"
+    assert "confidence ausente" in str(result["results"][-1])

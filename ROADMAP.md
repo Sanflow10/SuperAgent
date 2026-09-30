@@ -39,7 +39,9 @@ O Critic vira fachada sobre um `DecisionEngine` pluggable (`core/decisions.py`).
 | SA-117 | Engine `typed`: endpoint OpenAI-compatible (`DECISION_URL`/`DECISION_MODEL`), temperature 0, JSON estrito — caminho de entrada para Jev/Laya/classificadores locais | P1 | ✅ |
 | SA-118 | `audit.sh` [10]: decision layer fail-closed + limiar explícito | P1 | ✅ |
 | SA-119 | Calibração do limiar com dados rotulados (shadow mode: engine `typed` vs `llm` comparados sem agir) | P1 | ⬜ |
-| SA-120 | Metric: latência/custo do critic por engine (baseline para o benchmark "critic 68s → sub-segundo") | P2 | ⬜ |
+| SA-120 | Metric: latência/custo do critic por engine (baseline para o benchmark "critic 68s → sub-segundo") | P2 | ✅ |
+
+**SA-120 medido (2026-09-30, NIM real):** `rules` **0.00ms** (n=500) vs `llm` p50 **107.5s** / max 394.1s (n=3) vs `typed` p50 **70.9s** consistente (n=3) — `benchmarks/results.json`, harness `python -m tools.benchmark`.
 
 **Critério de aceitação da Decision Engine:** SA-114..118 ✅ + run real com LLM (NIM) fechando `COMPLETED` + engine `typed` aprovado contra endpoint OpenAI-compatible real.
 
@@ -98,6 +100,7 @@ O Critic vira fachada sobre um `DecisionEngine` pluggable (`core/decisions.py`).
 - **SA-503** Suporte a outros runtimes locais (llama.cpp server, vLLM) atrás da interface `ModelRouter`.
 - **SA-504** Multi-tenant: isolamento de workspace por tenant/run com quotas.
 - **SA-505** Remoção de `restart: "no"` → wrapper de batch com retry limitado fora do compose.
+- **SA-506** TOCTOU em `filesystem.write`: escrita com `O_NOFOLLOW`/`openat` (ou revalidação pós-`mkdir`) — bloqueia symlink trocado entre validação e escrita; urgente ao entrar o paralelismo (SA-203). Ver `SECURITY.md` (achado 3).
 
 ## Riscos do portfólio
 

@@ -1,0 +1,47 @@
+{
+  "benchmark": "SA-120 — Decision Engine latency",
+  "input": {
+    "goal": "Execute o script analise.py que ja existe no workspace e resuma a saida dele.",
+    "objective": "executar analise.py no sandbox e resumir a saida"
+  },
+  "measured_at": "2026-09-30",
+  "results": [
+    {
+      "engine": "rules",
+      "n": 500,
+      "mean_ms": 0.0,
+      "p50_ms": 0.0,
+      "p95_ms": 0.0,
+      "min_ms": 0.0,
+      "max_ms": 0.03,
+      "decisions": {
+        "APPROVE": 500
+      }
+    },
+    {
+      "engine": "llm",
+      "n": 3,
+      "mean_ms": 201290.0,
+      "p50_ms": 107500.0,
+      "p95_ms": 107500.0,
+      "min_ms": 102230.0,
+      "max_ms": 394140.0,
+      "decisions": {
+        "REJECT": 3
+      }
+    },
+    {
+      "engine": "typed",
+      "n": 3,
+      "mean_ms": 72796.42,
+      "p50_ms": 70861.31,
+      "p95_ms": 70861.31,
+      "min_ms": 69743.43,
+      "max_ms": 77784.51,
+      "decisions": {
+        "APPROVE": 3
+      }
+    }
+  ],
+  "note": "Mesma entrada, mesmo dia, NIM real (z-ai/glm-5.3-flash). rules+llm no run \"all\"; typed com DECISION_TIMEOUT=240. llm vai via ModelRouter/shim, typed faz POST direto OpenAI-compatible."
+}

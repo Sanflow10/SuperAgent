@@ -129,7 +129,24 @@ class SandboxTool:
 
         return apply
 
-    def _spawn(self, command: list[str], cwd: Path) -> tuple[str, int | None]:
+    def _spawn(
+        self,
+        command: list[str],
+        cwd: Path,
+        *,
+        inherit_env: bool = True,
+    ) -> tuple[str, int | None]:
+        # Backend plain: NÃO herda o ambiente do processo pai — o código
+        # gerado pelo LLM não pode ler chaves (NVIDIA_*, DECISION_API_KEY)
+        # do host. bwrap herda aqui porque limpa o env dentro (--clearenv).
+        env = None
+        if not inherit_env:
+            env = {
+                "PATH": "/usr/bin:/bin",
+                "HOME": str(cwd),
+                "LANG": "C.UTF-8",
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
         process = subprocess.Popen(
             command,
             cwd=str(cwd),
@@ -139,6 +156,7 @@ class SandboxTool:
             errors="replace",
             start_new_session=True,
             preexec_fn=self._limits(),
+            env=env,
         )
         try:
             out, _ = process.communicate(timeout=self.timeout)
@@ -192,7 +210,11 @@ class SandboxTool:
     def _run_plain(self, script: Path) -> tuple[str, int | None]:
         cwd = Path(tempfile.mkdtemp(prefix="sa_sandbox_"))
         try:
-            return self._spawn([sys.executable, "-I", str(script)], cwd)
+            return self._spawn(
+                [sys.executable, "-I", str(script)],
+                cwd,
+                inherit_env=False,
+            )
         finally:
             shutil.rmtree(cwd, ignore_errors=True)
 

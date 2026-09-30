@@ -1,6 +1,29 @@
-# SuperAgent V0.6
+# SuperAgent
 
-Sistema multiagente controlado sobre Python + Ollama.
+> ### O LLM propõe. A política decide. O humano escala.
+
+**SuperAgent é um runtime limitado para agentes LLM — um firewall para agentes.**
+Toda decisão cruza um motor *fail-closed* (`APPROVE | REJECT | ESCALATE`), toda
+ação roda dentro de um sandbox do sistema operacional, todo run termina em log
+auditável. **O modelo nunca tem a última palavra.**
+
+**The model proposes. Policy disposes. Humans escalate.**
+A bounded runtime for LLM agents: fail-closed decision engine, OS-level sandbox,
+full audit trail. The LLM never gets the last word.
+
+```bash
+git clone git@github.com:Sanflow10/SuperAgent.git && cd SuperAgent
+python main.py "seu objetivo" --output resultado.json
+```
+
+- **Fail-closed por design** — confidence não é autorização: abaixo do limiar,
+  APPROVE vira `ESCALATE` e o run **para** na mão de um humano.
+- **Sandbox do SO** — bwrap com namespaces, sem rede, sem herdar segredos do host;
+  deny-by-default (`ALLOW_SANDBOX=false`).
+- **Decision engine pluggable** — `llm` (clássico), `rules` (determinístico,
+  offline), `typed` (endpoint OpenAI-compatible: Jev, Laya, classificador local).
+- **Prova real** — runs executados contra LLM de verdade, `COMPLETED`, com
+  sandbox e critic; 86 testes; `audit.sh` com 10 checagens.
 
 ## Novidades da V0.6 — sandbox de execução
 
@@ -40,6 +63,26 @@ Princípios (fail-closed, alinhado ao padrão decision-layer):
   decisão só emite sinais; tools e limites nunca dependem dele.
 - `rules` e `typed` resolvem o problema do critic lento: sem LLM (rules)
   ou decisão tipada em um único POST (typed).
+
+### Números — latência do critic por engine (SA-120)
+
+Mesma entrada, mesmo dia, NIM real (`z-ai/glm-5.3-flash`), 2026-09-30 —
+`python -m tools.benchmark`, dados brutos em `benchmarks/results.json`:
+
+| Engine | n | mean | p50 | max | Decisões |
+|---|---|---|---|---|---|
+| `rules` | 500 | **0.00 ms** | 0.00 ms | 0.03 ms | APPROVE×500 |
+| `llm` | 3 | 201.3 s | 107.5 s | 394.1 s | REJECT×3 |
+| `typed` (NIM) | 3 | 72.8 s | 70.9 s | 77.8 s | APPROVE×3 |
+
+- **De minutos para sub-milissegundo**: o gate determinístico é a ordem de
+  grandeza que torna run de CI/teste viável sem LLM.
+- `typed` fez POST direto (sem hop de shim) e foi **consistente**
+  (69.7–77.8s, sem estouro) — com classificador **local** (Jev/Laya na
+  mesma máquina) essa mesma interface cai para o tempo do modelo local.
+- Decisões divergem **por desenho**: `rules` é gate de marcadores
+  (vazio / timeout / exit≠0 / traceback), `llm` julga semântica —
+  REJECT×3 na mesma entrada que `rules` aprovou é julgamento, não bug.
 
 ## Arquitetura
 
