@@ -1,0 +1,50 @@
+application:
+  name: superagent
+  version: "0.6.0"
+  log_level: INFO
+
+limits:
+  max_steps: 20
+  max_replans: 3
+  max_depth: 3
+  max_runtime_minutes: 30
+  max_context_chars: 24000
+  max_read_chars: 8000
+  max_memory_records: 500
+
+models:
+  planner: qwen3:8b
+  researcher: qwen3:8b
+  coder: qwen2.5-coder:7b
+  critic: qwen3:8b
+
+temperatures:
+  planner: 0.0
+  researcher: 0.2
+  coder: 0.2
+  critic: 0.0
+
+policy:
+  allow_file_read: true
+  allow_file_write: true
+  allow_network: false
+  allow_shell: false
+  allow_sandbox: false
+
+sandbox:
+  backend: auto
+  timeout: 30
+  memory_mb: 256
+  max_output: 8000
+
+decision:
+  engine: llm            # llm | rules | typed
+  min_confidence: 0.0    # APPROVE com confidence abaixo disso => ESCALATE
+  url: ""                # DECISION_URL: endpoint OpenAI-compatible (engine typed)
+  model: ""              # DECISION_MODEL: modelo do motor tipado
+  timeout: 60            # DECISION_TIMEOUT
+
+ollama:
+  url: http://127.0.0.1:11434
+  timeout: 300
+  retries: 3
