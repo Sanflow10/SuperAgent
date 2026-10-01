@@ -18,3 +18,8 @@ workspace/*
 
 sandbox/*
 !sandbox/.gitkeep
+
+# artefatos de build (SA-001)
+dist/
+build/
+*.egg-info/
