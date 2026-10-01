@@ -1,3 +1,4 @@
+import logging
 import os
 import resource
 import shutil
@@ -8,6 +9,8 @@ import tempfile
 from pathlib import Path
 
 from core.config import Config
+
+LOGGER = logging.getLogger("superagent.sandbox")
 
 
 class SandboxTool:
@@ -46,6 +49,12 @@ class SandboxTool:
         self.max_output = config.env_int(
             "SANDBOX_MAX_OUTPUT", "sandbox", "max_output", default=8000
         )
+        # Auditoria externa 2026-10-01 (SA-004): quando true, o modo auto
+        # NÃO faz fallback silencioso para plain — exige bwrap.
+        self.require_isolation = config.env_bool(
+            "SANDBOX_REQUIRE_ISOLATION", "sandbox", "require_isolation",
+            default=False,
+        )
 
         self._probe: bool | None = None
 
@@ -73,6 +82,20 @@ class SandboxTool:
         if backend == "bwrap":
             output, code = self._run_bwrap(script)
             if self.backend == "auto" and (output or "").lstrip().startswith("bwrap:"):
+                if self.require_isolation:
+                    raise PermissionError(
+                        "bwrap falhou na execução e SANDBOX_REQUIRE_ISOLATION=true "
+                        "proíbe o fallback para plain."
+                    )
+                LOGGER.warning(
+                    "sandbox_backend_fallback",
+                    extra={
+                        "event": "sandbox_backend_fallback",
+                        "reason": "bwrap_runtime_error",
+                        "from_backend": "bwrap",
+                        "to_backend": "plain",
+                    },
+                )
                 output, code = self._run_plain(script)
         else:
             output, code = self._run_plain(script)
@@ -92,6 +115,11 @@ class SandboxTool:
 
     def _pick_backend(self) -> str:
         if self.backend == "plain":
+            if self.require_isolation:
+                raise PermissionError(
+                    "SANDBOX_REQUIRE_ISOLATION=true exige bwrap; "
+                    "SANDBOX_BACKEND=plain oferece isolamento reduzido."
+                )
             return "plain"
         if self.backend == "bwrap":
             if shutil.which("bwrap") is None or not self._bwrap_usable():
@@ -101,6 +129,22 @@ class SandboxTool:
             return "bwrap"
         if shutil.which("bwrap") and self._bwrap_usable():
             return "bwrap"
+        if self.require_isolation:
+            raise PermissionError(
+                "SANDBOX_REQUIRE_ISOLATION=true e bwrap indisponível neste host; "
+                "o modo auto não faz fallback para plain. Instale o bubblewrap."
+            )
+        # Auditoria externa 2026-10-01 (SA-004): fallback para plain é
+        # isolamento reduzido — declarado em log, nunca silencioso.
+        LOGGER.warning(
+            "sandbox_backend_fallback",
+            extra={
+                "event": "sandbox_backend_fallback",
+                "reason": "bwrap_unavailable",
+                "from_backend": "bwrap",
+                "to_backend": "plain",
+            },
+        )
         return "plain"
 
     def _bwrap_usable(self) -> bool:

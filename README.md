@@ -1,5 +1,8 @@
 # SuperAgent
 
+[![CI](https://github.com/Sanflow10/SuperAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanflow10/SuperAgent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 > ### O LLM propõe. A política decide. O humano escala.
 
 **SuperAgent é um runtime limitado para agentes LLM — um firewall para agentes.**
@@ -37,6 +40,10 @@ isolamento em camadas (deny by default — exige `ALLOW_SANDBOX=true`):
   com `killpg` — isolamento reduzido (não nega rede), documentado.
 - Limites: `SANDBOX_TIMEOUT`, `SANDBOX_MEMORY_MB`, `SANDBOX_MAX_OUTPUT`,
   `SANDBOX_BACKEND` (auto|bwrap|plain).
+- **Fallback declarado, nunca silencioso** (auditoria externa SA-004): o modo
+  `auto` loga o evento `sandbox_backend_fallback` ao cair para `plain`, e
+  `SANDBOX_REQUIRE_ISOLATION=true` **nega o fallback** (exige bubblewrap —
+  `plain` explícito também é recusado nesse modo).
 - O stdout/exit code volta como `<sandbox_output>` no contexto do step e
   é avaliado pelo Critic como qualquer outro resultado.
 

@@ -47,6 +47,8 @@ O Critic vira fachada sobre um `DecisionEngine` pluggable (`core/decisions.py`).
 
 **Hardening do parser (2026-09-30, pós-run real):** `parse_json_llm` com `strict=False` (newline/controle literal dentro de string) e ordem **inteiro → fence → faixas** (JSON cujo `content` markdown contém fence ```` ``` ```` não é mais destruído antes do parse); diagnóstico das respostas crua em `logs/coder_unparseable.log`. Causa confirmada com as respostas reais do run `6c49b0e8`; 81 testes.
 
+**Auditoria externa comparativa (2026-10-01, AdversaryGate × SuperAgent):** veredito "protótipo funcional, não certificado como produto". P0 do SuperAgent corrigido na sequência: build do pacote com descoberta explícita de pacotes (SA-001), `audit.sh` falha sem pytest (SA-002), CI público com matriz 3.11/3.12 + build/smoke (SA-003), fallback `auto → plain` não-silencioso com `SANDBOX_REQUIRE_ISOLATION` (SA-004). Pendências: SA-506 (TOCTOU, era SA-005) e SA-507 (era SA-006). Ver `SECURITY.md`.
+
 ---
 
 ## V0.7 — Memória e paralelismo
@@ -101,6 +103,7 @@ O Critic vira fachada sobre um `DecisionEngine` pluggable (`core/decisions.py`).
 - **SA-504** Multi-tenant: isolamento de workspace por tenant/run com quotas.
 - **SA-505** Remoção de `restart: "no"` → wrapper de batch com retry limitado fora do compose.
 - **SA-506** TOCTOU em `filesystem.write`: escrita com `O_NOFOLLOW`/`openat` (ou revalidação pós-`mkdir`) — bloqueia symlink trocado entre validação e escrita; urgente ao entrar o paralelismo (SA-203). Ver `SECURITY.md` (achado 3).
+- **SA-507** Separar semanticamente `SANITY_PASS` de `APPROVE` no engine `rules` (auditoria externa 2026-10-01, SA-006): risco de produto — `APPROVE` do gate de marcadores não é revisão semântica.
 
 ## Riscos do portfólio
 

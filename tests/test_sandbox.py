@@ -113,3 +113,55 @@ def test_plain_backend_does_not_inherit_parent_env(tmp_path, monkeypatch):
     output = tool.execute("env.py")
     assert "banana-123" not in output
     assert "LEAK= None" in output
+
+
+def test_require_isolation_negates_auto_fallback(tmp_path, monkeypatch):
+    """Auditoria externa SA-004: REQUIRE_ISOLATION=true + bwrap ausente
+    => o modo auto FALHA (fail-closed) em vez de cair silencioso p/ plain."""
+    monkeypatch.setenv("SANDBOX_REQUIRE_ISOLATION", "true")
+    monkeypatch.setattr("tools.sandbox.shutil.which", lambda *_: None)
+    tool = _tool(tmp_path, monkeypatch)
+    tool.fs.write_many([("x.py", "print(1)")])
+    with pytest.raises(PermissionError, match="REQUIRE_ISOLATION"):
+        tool.execute("x.py")
+
+
+def test_require_isolation_rejects_explicit_plain(tmp_path, monkeypatch):
+    """Configuração contraditória (exigir isolamento e escolher plain)
+    falha cedo, não roda com isolamento reduzido."""
+    monkeypatch.setenv("SANDBOX_REQUIRE_ISOLATION", "true")
+    tool = _tool(tmp_path, monkeypatch, SANDBOX_BACKEND="plain")
+    tool.fs.write_many([("x.py", "print(1)")])
+    with pytest.raises(PermissionError, match="isolamento reduzido"):
+        tool.execute("x.py")
+
+
+def test_auto_fallback_to_plain_is_logged_not_silent(tmp_path, monkeypatch):
+    """SA-004: sem REQUIRE_ISOLATION o fallback para plain continua
+    funcionando, mas é declarado em log (evento sandbox_backend_fallback)."""
+    calls = []
+    monkeypatch.setattr(
+        "tools.sandbox.LOGGER.warning",
+        lambda msg, **kw: calls.append((msg, kw)),
+    )
+    monkeypatch.setattr("tools.sandbox.shutil.which", lambda *_: None)
+    tool = _tool(tmp_path, monkeypatch)
+    tool.fs.write_many([("x.py", "print(42)")])
+    output = tool.execute("x.py")
+    assert "42" in output
+    assert calls and calls[0][0] == "sandbox_backend_fallback"
+    assert calls[0][1]["extra"]["reason"] == "bwrap_unavailable"
+    assert calls[0][1]["extra"]["to_backend"] == "plain"
+
+
+def test_runtime_bwrap_failure_respects_require_isolation(tmp_path, monkeypatch):
+    """Fallback no MEIO da execução (bwrap quebra depois do probe) também
+    obedece a REQUIRE_ISOLATION — nunca cai para plain em modo estrito."""
+    monkeypatch.setenv("SANDBOX_REQUIRE_ISOLATION", "true")
+    tool = _tool(tmp_path, monkeypatch)
+    monkeypatch.setattr("tools.sandbox.shutil.which", lambda *_: "/usr/bin/bwrap")
+    tool._probe = True
+    monkeypatch.setattr(tool, "_run_bwrap", lambda script: ("bwrap: boom", 1))
+    tool.fs.write_many([("x.py", "print(1)")])
+    with pytest.raises(PermissionError, match="proíbe o fallback"):
+        tool.execute("x.py")

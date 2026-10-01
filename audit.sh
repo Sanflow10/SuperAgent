@@ -62,7 +62,10 @@ if command -v pytest >/dev/null 2>&1; then
         printf 'FALHA: testes falharam\n'; FAIL=1
     fi
 else
-    printf 'AVISO: pytest nao instalado\n'
+    # Auditoria externa 2026-10-01 (SA-002): PASS sem rodar testes
+    # não é auditoria. pytest ausente = falha, não aviso.
+    printf 'FALHA: pytest nao instalado (testes sao obrigatorios)\n'
+    FAIL=1
 fi
 
 printf '\n[8] safe_target usa relative_to\n'

@@ -64,6 +64,27 @@ real com steps paralelos (SA-203). Correção prevista: abrir com
   read-only, `tmpfs /tmp`, `PATH` mínima; teste de rede: script que tenta
   socket recebe `NET_DENIED`.
 
+## Auditoria externa 2026-10-01 (comparativa AdversaryGate × SuperAgent)
+
+Auditoria independente do commit `e65ef6b` (relatório completo em posse do
+mantenedor). Veredito: *protótipo funcional de runtime local, não aprovado
+como produto de segurança ou pacote distribuível*. Achados do SuperAgent e
+status:
+
+| Achado | Sev. | Status |
+|---|---|---|
+| SA-001 — build do pacote falha (flat-layout descobria dirs de dados) | Alta p/ distribuição | ✅ **CORRIGIDO — `[tool.setuptools.packages.find]` explícito (`core*`, `agents*`, `tools*`) |
+| SA-002 — `audit.sh` retornava PASS sem pytest instalado | Média/Alta | ✅ **CORRIGIDO — pytest ausente = `FALHA`, `exit 1` |
+| SA-003 — sem CI, tags nem releases | Alta de maturidade | ✅ **CORRIGIDO — `.github/workflows/ci.yml` (3.11/3.12: ruff, mypy, pytest, audit, build, smoke) |
+| SA-004 — `auto` caía silencioso para `plain` sem rede negada | Alta fora de container | ✅ **CORRIGIDO — evento `sandbox_backend_fallback` em log + `SANDBOX_REQUIRE_ISOLATION=true` nega fallback (testes) |
+| SA-005 — TOCTOU em `filesystem.write` | Média | ⬜ Backlog **SA-506** (antes da paralelização SA-203) |
+| SA-006 — `rules` aprova como `APPROVE` sem prova semântica | Baixa (expectativa) | ⬜ Backlog **SA-507** (`SANITY_PASS`) |
+
+Pontos confirmados como fortes na auditoria: separação Policy/Supervisor/
+DecisionEngine, conjunto fechado fail-closed, confidence ausente ⇒ ESCALATE,
+`resolve()`+`relative_to`, sandbox deny-by-default, env mínimo do fallback
+plain (corrigido em 2026-09-30) e rollback transacional.
+
 ## Limites declarados
 
 - O backend `plain` **não nega rede** (só o bwrap) — use bwrap em produção.
