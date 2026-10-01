@@ -26,6 +26,7 @@ dev = [
     "pytest-mock>=3.11",
     "ruff>=0.6,<1",
     "mypy>=1.11,<2",
+    "types-PyYAML>=6.0,<7",
 ]
 
 [tool.pytest.ini_options]
